@@ -1,9 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Threading;
+using System;
 using CommandLine;
 using RePKG.Command;
-using RePKG.Properties;
 
 namespace RePKG
 {
@@ -23,51 +20,31 @@ namespace RePKG
 
             Parser.Default.ParseArguments<ExtractOptions, InfoOptions>(args)
                 .WithParsed<ExtractOptions>(Extract.Action)
-                .WithParsed<InfoOptions>(Info.Action)
-                .WithNotParsed(NotParsedAction);
+                .WithParsed<InfoOptions>(Info.Action);
         }
 
         private static void Cancel(object sender, ConsoleCancelEventArgs e)
         {
             Closing = true;
             e.Cancel = true;
-            Console.WriteLine(Resources.Terminating);
+            Console.WriteLine("Terminating...");
         }
 
         private static void InteractiveConsole()
         {
-            Console.WriteLine(@"RePKG started in interactive mode. You can now type commands");
-            Console.WriteLine(@"Type ""help"" for commands");
+            Console.WriteLine("RePKG started in interactive mode. You can now type commands");
+            Console.WriteLine("Type \"help\" for commands");
             
             string line;
 
             while (!string.IsNullOrEmpty(line = Console.ReadLine()))
             {
-                if (line == "test")
-                {
-                    Thread.Sleep(10000);
-                    continue;
-                }
-
                 var interactiveArgs = line.SplitArguments();
 
                 Parser.Default.ParseArguments<ExtractOptions, InfoOptions>(interactiveArgs)
                     .WithParsed<ExtractOptions>(Extract.Action)
-                    .WithParsed<InfoOptions>(Info.Action)
-                    .WithNotParsed(NotParsedAction);
+                    .WithParsed<InfoOptions>(Info.Action);
             }
-        }
-
-
-        private static void NotParsedAction(IEnumerable<Error> errors)
-        {
-            /*foreach (var error in errors)
-            {
-                if (error.Tag == ErrorType.HelpRequestedError)
-                    continue;
-
-                Console.WriteLine(error.Tag);
-            }*/
         }
     }
 }

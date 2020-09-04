@@ -1,12 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using CommandLine;
 using Newtonsoft.Json;
-using RePKG.Package;
-using RePKG.Properties;
+using RePKG.Application.Package;
+using RePKG.Core.Package;
+using RePKG.Core.Package.Interfaces;
 
 namespace RePKG.Command
 {
@@ -14,6 +14,13 @@ namespace RePKG.Command
     {
         private static InfoOptions _options;
         private static string[] _projectInfoToPrint;
+
+        private static readonly IPackageReader _reader;
+
+        static Info()
+        {
+            _reader = new PackageReader();
+        }
 
         public static void Action(InfoOptions options)
         {
@@ -36,17 +43,17 @@ namespace RePKG.Command
                     else
                         InfoPkgDirectory(directoryInfo);
 
-                    Console.WriteLine(Resources.Done);
+                    Console.WriteLine("Done");
                     return;
                 }
 
-                Console.WriteLine(Resources.InputNotFound);
+                Console.WriteLine("Input file/directory doesn't exist!");
                 Console.WriteLine(options.Input);
                 return;
             }
-            
+
             InfoFile(fileInfo);
-            Console.WriteLine(Resources.Done);
+            Console.WriteLine("Done");
         }
 
         private static void InfoPkgDirectory(DirectoryInfo directoryInfo)
@@ -57,37 +64,35 @@ namespace RePKG.Command
             {
                 foreach (var file in directory.EnumerateFiles("*.pkg"))
                 {
-                    InfoPKG(file, file.FullName.Substring(rootDirectoryLength));
+                    InfoPkg(file, file.FullName.Substring(rootDirectoryLength));
                 }
             }
         }
 
         private static void InfoTexDirectory(DirectoryInfo directoryInfo)
         {
-
         }
 
         private static void InfoFile(FileInfo file)
         {
             if (file.Extension.Equals(".pkg", StringComparison.OrdinalIgnoreCase))
-                InfoPKG(file, Path.GetFullPath(file.Name));
+                InfoPkg(file, Path.GetFullPath(file.Name));
             else if (file.Extension.Equals(".tex", StringComparison.OrdinalIgnoreCase))
-                InfoTEX(file);
+                InfoTex(file);
             else
-                Console.WriteLine(Resources.UnrecognizedFileExtension, file.Extension);
+                Console.WriteLine($"Unrecognized file extension: {file.Extension}");
         }
 
-        [SuppressMessage("ReSharper", "PossibleNullReferenceException")]
-        private static void InfoPKG(FileInfo file, string name)
+        private static void InfoPkg(FileInfo file, string name)
         {
             var projectInfo = GetProjectInfo(file);
 
             if (!MatchesFilter(projectInfo))
                 return;
 
-            Console.WriteLine(Resources.InfoAboutPackage, name);
+            Console.WriteLine($"\r\n### Package info: {name}");
 
-            if (projectInfo != null && _projectInfoToPrint != null && _projectInfoToPrint.Length > 0)
+            if (projectInfo != null && _projectInfoToPrint?.Length > 0)
             {
                 IEnumerable<string> projectInfoEnumerator;
 
@@ -111,10 +116,13 @@ namespace RePKG.Command
 
             if (_options.PrintEntries)
             {
-                Console.WriteLine(Resources.PackageEntries);
+                Console.WriteLine("Package entries:");
 
-                var loader = new PackageLoader(false);
-                var package = loader.Load(file);
+                Package package;
+                using (var reader = new BinaryReader(file.Open(FileMode.Open, FileAccess.Read, FileShare.Read)))
+                {
+                    package = _reader.ReadFrom(reader);
+                }
 
                 var entries = package.Entries;
 
@@ -122,24 +130,23 @@ namespace RePKG.Command
                 {
                     if (_options.SortBy == "extension")
                         entries.Sort((a, b) =>
-                            String.Compare(a.EntryPath, b.EntryPath, StringComparison.OrdinalIgnoreCase));
+                            String.Compare(a.FullPath, b.FullPath, StringComparison.OrdinalIgnoreCase));
                     else if (_options.SortBy == "size")
                         entries.Sort((a, b) => a.Length.CompareTo(b.Length));
                     else
                         entries.Sort((a, b) =>
-                            String.Compare(a.EntryPath, b.EntryPath, StringComparison.OrdinalIgnoreCase));
+                            String.Compare(a.FullPath, b.FullPath, StringComparison.OrdinalIgnoreCase));
                 }
 
                 foreach (var entry in entries)
                 {
-                    Console.WriteLine(@"* " + entry.FullName + $@" - {entry.Length} bytes");
+                    Console.WriteLine(@"* " + entry.FullPath + $@" - {entry.Length} bytes");
                 }
             }
         }
 
-        private static void InfoTEX(FileInfo file)
+        private static void InfoTex(FileInfo file)
         {
-
         }
 
         private static dynamic GetProjectInfo(FileInfo packageFile)
@@ -171,7 +178,7 @@ namespace RePKG.Command
         }
     }
 
-    [Verb("info", HelpText = "Show info about PKG/TEX")]
+    [Verb("info", HelpText = "Dumps PKG/TEX info.")]
     public class InfoOptions
     {
         [Value(0, Required = true, HelpText = "Path to file which you want to get info about", MetaName = "Input file")]
@@ -183,10 +190,10 @@ namespace RePKG.Command
         [Option('b', "sortby", HelpText = "Sort by ... (available options: name, extension, size)", Default = "name")]
         public string SortBy { get; set; }
 
-        [Option('t', "tex", HelpText = "Get info about all tex files from specified directory in input")]
+        [Option('t', "tex", HelpText = "Dump info about all tex files from specified directory")]
         public bool TexDirectory { get; set; }
 
-        [Option('p', "projectinfo", HelpText = "Select info from project.json to print (delimit using comma)")]
+        [Option('p', "projectinfo", HelpText = "Keys to dump from project.json (delimit using comma) (* for all)")]
         public string ProjectInfo { get; set; }
 
         [Option('e', "printentries", HelpText = "Print entries in packages")]
